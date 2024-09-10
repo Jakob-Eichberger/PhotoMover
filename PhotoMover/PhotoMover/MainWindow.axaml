@@ -40,6 +40,9 @@
 				<Button Name="BtnSelectDestinationFolder" Content="Select"  Margin="5" Padding="5"  Click="BtnSelectDestinationFolder_Click" />
 				<TextBox Name="TbDestinationFolder" IsReadOnly="True" MinWidth="200" Margin="5" Padding="5" Text="{Binding Path=Settings.DestinationDirectory}"/>
 			</StackPanel>
+
+			<Label Content="Filter" Grid.Column="0" Grid.Row="3" Margin="5" Padding="5" />
+			<TextBox Name="TbFilter" Grid.Column="1" Grid.Row="3" MinWidth="200" Margin="5" Padding="5" Text="{Binding Path=Settings.FileFilter}"/>
 		</Grid>
 		<ProgressBar Name="Pb" Grid.Row="1" Margin="5" Padding="5" ShowProgressText="True" IsVisible="{Binding Path=Settings.IsWorking}" Maximum="{Binding Path=Importer.FilesCount}" Value="{Binding Path=ImportedFiles.Count}" />
 		<DataGrid Grid.Row="2" Margin="5" Padding="5"

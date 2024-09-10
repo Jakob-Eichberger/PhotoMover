@@ -46,12 +46,15 @@ namespace PhotoMover
         public async Task MoveFile(FileInfo sourceFile, FileInfo destinationFile)
         {
             if (!destinationFile.Exists)
-                await CopyFileAsync(sourceFile.FullName, destinationFile.FullName);
-            FilesMovedEvent?.Invoke(new MovedFile()
             {
-                OriginFile = sourceFile,
-                DestinationFile = destinationFile
-            });
+                sourceFile.CopyTo(destinationFile.FullName);
+                //await CopyFileAsync(sourceFile.FullName, destinationFile.FullName);
+                FilesMovedEvent?.Invoke(new MovedFile()
+                {
+                    OriginFile = sourceFile,
+                    DestinationFile = destinationFile
+                });
+            }
         }
 
         private static async Task CopyFileAsync(string sourceFile, string destinationFile)
