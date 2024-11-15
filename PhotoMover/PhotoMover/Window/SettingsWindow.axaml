@@ -1,0 +1,35 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="PhotoMover.SettingsWindow"
+        Title="Settings" SizeToContent="WidthAndHeight" CanResize="False" MinHeight="200" MinWidth="400">
+	<Grid>
+		<Grid.RowDefinitions>
+			<RowDefinition	Height="Auto"/>
+			<RowDefinition	Height="Auto"/>
+			<RowDefinition	Height="Auto"/>
+			<RowDefinition	Height="Auto"/>
+			<RowDefinition	Height="*"/>
+			<RowDefinition	Height="Auto"/>
+		</Grid.RowDefinitions>
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition	Width="Auto"/>
+			<ColumnDefinition	Width="*"/>
+		</Grid.ColumnDefinitions>
+
+		<CheckBox Content="FTP Server Enabled" IsChecked="{Binding Path=Settings.FtpServerEnabled}" Margin="5" Padding="5" />
+
+		<Label Content="Ftp Ip Adress" Grid.Column="0" Grid.Row="1" Margin="5" Padding="5" IsVisible="{Binding Path=Settings.FtpServerEnabled}"/>
+		<TextBox Name="TbFtpServerIpAdress" Grid.Column="1" Grid.Row="1" MinWidth="200" Margin="5" Padding="5" Text="{Binding Path=Settings.FtpServerIpAdress}" IsVisible="{Binding Path=Settings.FtpServerEnabled}"/>
+
+		<Label Content="Ftp User Name" Grid.Column="0" Grid.Row="2" Margin="5" Padding="5"  IsVisible="{Binding Path=Settings.FtpServerEnabled}"/>
+		<TextBox Name="TbFtpUserName" Grid.Column="1" Grid.Row="2" MinWidth="200" Margin="5" Padding="5" Text="{Binding Path=Settings.FtpUserName}" IsVisible="{Binding Path=Settings.FtpServerEnabled}"/>
+
+		<Label Content="Ftp Password" Grid.Column="0" Grid.Row="3" Margin="5" Padding="5"  IsVisible="{Binding Path=Settings.FtpServerEnabled}"/>
+		<TextBox Name="TbFtpPassword" Grid.Column="1" Grid.Row="3" MinWidth="200" Margin="5" Padding="5" Text="{Binding Path=Settings.FtpPassword}" IsVisible="{Binding Path=Settings.FtpServerEnabled}"/>
+
+		<Label Grid.Column="0" Grid.Row="5" Grid.ColumnSpan="3" Content="Restart App for changes to take effect!" Margin="5" Padding="5" IsVisible="{Binding Path=Settings.RequiresAppRestart}"/>
+	</Grid>
+</Window>

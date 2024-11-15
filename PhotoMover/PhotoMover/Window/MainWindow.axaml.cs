@@ -2,26 +2,41 @@ using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Threading;
 using DotNetConfig;
+using Microsoft.Extensions.DependencyInjection;
+using MsBox.Avalonia.Enums;
+using MsBox.Avalonia;
+using ReactiveUI;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Threading;
+using FubarDev.FtpServer;
 
 namespace PhotoMover
 {
     public partial class MainWindow : Window
     {
-        Mutex _mutex = new Mutex(false);
+        readonly Mutex _mutex = new(false);
 
-        public MainWindow()
+        public MainWindow(IServiceProvider serviceProvider)
         {
-            Config config = Config.Build();
-            Settings = new Settings(config);
-            Importer = new Importer(Settings);
+            ServiceProvider = serviceProvider;
+            Settings = serviceProvider.GetService<Settings>()!;
+            Importer = serviceProvider.GetService<Importer>()!;
             Importer.FilesMovedEvent += Importer_FilesMovedEvent;
+            FtpServer = (serviceProvider.GetRequiredService<IFtpServer>() as FtpServer)!;
             DataContext = this;
             InitializeComponent();
+            this.Loaded += MainWindow_Loaded;
+        }
+
+        private async void MainWindow_Loaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            if (Settings.FtpServerEnabled)
+                await FtpServer.StartAsync(CancellationToken.None);
         }
 
         public Settings Settings { get; }
@@ -29,6 +44,10 @@ namespace PhotoMover
         public Importer Importer { get; }
 
         public ObservableCollection<MovedFile> ImportedFiles { get; } = [];
+
+        public IServiceProvider ServiceProvider { get; }
+
+        public FtpServer FtpServer { get; }
 
         private void Importer_FilesMovedEvent(MovedFile file)
         {
@@ -72,19 +91,23 @@ namespace PhotoMover
             try
             {
                 ImportedFiles.Clear();
-                var files = await Importer.GetFilesAsync();
+                List<FileInfo> files = await Importer.GetFilesAsync(Settings.SelectedDirectory);
                 await Importer.MoveFilesAsync(files);
             }
-            //catch (Exception)
-            //{
-
-            //    throw;
-            //}
+            catch (Exception ex)
+            {
+                Log.Logger.Error(ex, nameof(BtnImportFiles_Click));
+                await MessageBoxManager.GetMessageBoxStandard("Error", ex.Message, ButtonEnum.Ok).ShowAsync();
+            }
             finally
             {
                 Settings.IsWorking = false;
-
             }
+        }
+
+        private async void BtnSettings_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            await new SettingsWindow(ServiceProvider).ShowDialog(this);
         }
     }
 }

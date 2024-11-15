@@ -1,0 +1,77 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		xmlns:pm="using:PhotoMover"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="PhotoMover.MainWindow"
+        Title="PhotoMover" SizeToContent="WidthAndHeight" CanResize="False">
+	<Grid>
+		<Grid.RowDefinitions>
+			<RowDefinition	Height="Auto"/>
+			<RowDefinition	Height="Auto"/>
+			<RowDefinition	Height="*"/>
+		</Grid.RowDefinitions>
+		<Grid Grid.Row="0" IsEnabled="{Binding Path=!Settings.IsWorking}">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="*"/>
+				<ColumnDefinition Width="Auto"/>
+			</Grid.ColumnDefinitions>
+			<Grid.RowDefinitions>
+				<RowDefinition	Height="Auto"/>
+				<RowDefinition	Height="Auto"/>
+				<RowDefinition	Height="Auto"/>
+				<RowDefinition	Height="Auto"/>
+				<RowDefinition	Height="Auto"/>
+				<RowDefinition	Height="Auto"/>
+			</Grid.RowDefinitions>
+
+			<Label Content="Source Folder" Grid.Column="0" Grid.Row="1" Margin="5" Padding="5" />
+			<Grid Grid.Row="1" Grid.Column="1" >
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="Auto"/>
+					<ColumnDefinition Width="*"/>
+				</Grid.ColumnDefinitions>
+				<Button Name="BtnOpenFolderDialog" Grid.Column="0" Content="Select" Margin="5" Padding="5" Click="BtnOpenFolderDialog_Click" />
+				<TextBox Name="TbLocation" IsReadOnly="True" Grid.Column="1" Margin="5" Padding="5" Text="{Binding Path=Settings.SelectedDirectory}"/>
+			</Grid>
+
+			<Button Name="BtnSettings" Grid.Row="1" Grid.Column="3" Content="SE" Margin="5" Padding="5" Click="BtnSettings_Click"/>
+
+			<Label Content="Destination Folder" Grid.Column="0" Grid.Row="2"  Margin="5" Padding="5" />
+			<Grid Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="Auto"/>
+					<ColumnDefinition Width="*"/>
+				</Grid.ColumnDefinitions>
+				<Button Name="BtnSelectDestinationFolder" Grid.Column="0" Content="Select"  Margin="5" Padding="5"  Click="BtnSelectDestinationFolder_Click" />
+				<TextBox Name="TbDestinationFolder" IsReadOnly="True" Grid.Column="1" Margin="5" Padding="5" Text="{Binding Path=Settings.DestinationDirectory}"/>
+			</Grid>
+
+			<Label Content="Filter" Grid.Column="0" Grid.Row="3" Margin="5" Padding="5" />
+			<TextBox Name="TbFilter" Grid.Column="1" Grid.Row="3" Grid.ColumnSpan="2" MinWidth="200" Margin="5" Padding="5" Text="{Binding Path=Settings.FileFilter}"/>
+
+			<Label Content="Grouping" Grid.Column="0" Grid.Row="4" Margin="5" Padding="5" />
+			<TextBox Name="TbGrouping" Grid.Column="1" Grid.Row="4" Grid.ColumnSpan="2" MinWidth="200" Margin="5" Padding="5" Text="{Binding Path=Settings.Grouping}"/>
+
+			<StackPanel Grid.Column="0" Grid.Row="5" Grid.ColumnSpan="3"  Orientation="Horizontal" IsVisible="{Binding Path=Settings.FtpServerEnabled}">
+				<Label Content="FTP Server Queue: " Margin="5" Padding="5"  />
+				<Label Content="{Binding Path=Importer.FtpFilesQueue.Count}" Margin="5" Padding="5"/>
+			</StackPanel>
+			<Button Name="BtnImportFiles" Grid.Column="1" Grid.Row="5" Grid.ColumnSpan="3" HorizontalAlignment="Right" Margin="5" Padding="5" Content="Move Files" Click="BtnImportFiles_Click"/>
+		</Grid>
+		<ProgressBar Name="Pb" Grid.Row="1" Margin="5" Padding="5" ShowProgressText="True" IsVisible="{Binding Path=Settings.IsWorking}" Maximum="{Binding Path=Importer.FilesCount}" Value="{Binding Path=ImportedFiles.Count}" />
+		<DataGrid Grid.Row="2" Margin="5" Padding="5"
+		  AutoGenerateColumns="False" IsReadOnly="True"
+		  GridLinesVisibility="All"
+		  BorderThickness="1" BorderBrush="Gray" ItemsSource="{Binding Path=ImportedFiles}"  MinHeight="200">
+			<DataGrid.Columns>
+				<DataGridTextColumn Header="File Name" Binding="{Binding Path=OriginFile.Name}"/>
+				<DataGridTextColumn Header="Created" Binding="{Binding Path=OriginFile.CreationTime}"/>
+				<DataGridTextColumn Header="Origin" Binding="{Binding Path=OriginFile.Directory.FullName}"/>
+				<DataGridTextColumn Header="Target" Binding="{Binding Path=DestinationFile.Directory.FullName}"/>
+			</DataGrid.Columns>
+		</DataGrid>
+	</Grid>
+</Window>

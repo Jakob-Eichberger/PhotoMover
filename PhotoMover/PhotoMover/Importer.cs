@@ -1,7 +1,11 @@
-﻿using DotNetConfig;
-using HarfBuzzSharp;
+﻿using Avalonia.Logging;
+using DynamicData.Kernel;
+using ExifLibrary;
 using ReactiveUI;
-using System.Collections;
+using Serilog;
+using Serilog.Core;
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -11,44 +15,121 @@ using System.Threading.Tasks;
 
 namespace PhotoMover
 {
-    public class Importer(Settings settings) : ReactiveObject
+    public class Importer : ReactiveObject
     {
         public delegate void FileMovedHandler(MovedFile file);
         public delegate void ProgressReportedHandler(int count, int max);
-
-        private int filesCount = 0;
-        private readonly Settings Settings = settings;
-
         public event FileMovedHandler? FilesMovedEvent;
         public event ProgressReportedHandler? ProgressReportedEvent;
+        private int filesCount = 0;
+        private readonly Settings Settings;
+        private Task FtpFilesQueueWatcherTask;
+        readonly Mutex _mutex = new(false);
+
+        public Importer(Settings settings)
+        {
+            Settings = settings;
+            FtpFilesQueueWatcherTask = new Task(MoveFilesInFtpFilesQueue);
+            FileSystemWatcher.Path = settings.FtpServerPath;
+            FileSystemWatcher.IncludeSubdirectories = true;
+            FileSystemWatcher.Created += FileSystemWatcher_Created;
+            FileSystemWatcher.EnableRaisingEvents = Settings.FtpServerEnabled;
+            if (Settings.FtpServerEnabled)
+            {
+                FtpFilesQueueWatcherTask.Start();
+            }
+        }
+
+        private void FileSystemWatcher_Created(object sender, FileSystemEventArgs e)
+        {
+            _mutex.WaitOne();
+            try
+            {
+                FtpFilesQueue.Add(new FileInfo(e.FullPath));
+            }
+            finally
+            {
+                _mutex.ReleaseMutex();
+            }
+        }
+
+        public ObservableCollection<FileInfo> FtpFilesQueue { get; } = [];
+
+        public FileSystemWatcher FileSystemWatcher { get; set; } = new();
 
         public int FilesCount { get => filesCount; set => this.RaiseAndSetIfChanged(ref filesCount, value); }
 
-        public async Task<IOrderedEnumerable<FileInfo>> GetFilesAsync() => await Task.Run(() => new DirectoryInfo(Settings.SelectedDirectory).GetFiles(Settings.FileFilter, SearchOption.AllDirectories).OrderBy(e => e.CreationTime));
+        public async Task<List<FileInfo>> GetFilesAsync(string path) => await Task.Run(() => new DirectoryInfo(path).GetFiles(Settings.FileFilter, SearchOption.AllDirectories).OrderBy(e => e.CreationTime).ToList());
+
+        private async void MoveFilesInFtpFilesQueue()
+        {
+            while (true)
+            {
+                var files = FtpFilesQueue.Where(e => !IsFileLocked(e) && e.Exists).ToList();
+                await MoveFilesAsync(files);
+                files.ForEach(e=>e.Delete());
+                if (files.Any())
+                {
+                    _mutex.WaitOne();
+                    try
+                    {
+                        files.ForEach(e => FtpFilesQueue.Remove(e));
+                    }
+                    finally
+                    {
+                        _mutex.ReleaseMutex();
+                    }
+                }
+                await Task.Delay(new TimeSpan(0, 0, 5));
+            }
+        }
 
         public FileInfo GetDestinationFileInfo(FileInfo file)
         {
-            return new FileInfo(Path.Combine(Settings.DestinationDirectory, file.CreationTime.ToString("yyyy MM dd"), file.Name));
+            var exif = ImageFile.FromFile(file.FullName).Properties.AsArray();
+            List<string> paths = Settings.Grouping.Split("\\").Select(e => CreatePath(e, exif)).Where(e => !string.IsNullOrWhiteSpace(e)).ToList();
+            paths.Insert(0, Settings.DestinationDirectory);
+            paths.Add(file.Name);
+            var path = Path.Combine(paths.ToArray());
+            return new FileInfo(path);
         }
 
-        public async Task MoveFilesAsync(IEnumerable<FileInfo> files) => await Task.Run(async () =>
+        private static string CreatePath(string e, ExifProperty[] exifProperties)
         {
-            Parallel.ForEach(files.Select(e => GetDestinationFileInfo(e)).Select(e => e.Directory).Where(e => !e.Exists), (d) => d.Create());
-            FilesCount = files.Count();
+            try
+            {
+                var exif = Enum.Parse<ExifTag>(e.Replace("{{", "").Replace("}}", ""));
+                object obj = exifProperties.First(e => e.Tag == exif).Value;
+                return obj switch
+                {
+                    DateTime dt => dt.ToString("yyyy MM dd"),
+                    _ => obj?.ToString() ?? ""
+                };
+            }
+            catch (Exception ex)
+            {
+                Log.Logger.Error(ex, $"Could not get property value for symbole \"{e}\"");
+                return string.Empty;
+            }
+        }
 
-            await Parallel.ForEachAsync(files, async (file, _) =>
+        public async Task MoveFilesAsync(IEnumerable<FileInfo> files) => await Task.Run(() =>
+        {
+            FilesCount = files.Count();
+            foreach (var file in files)
             {
                 FileInfo destinationPath = GetDestinationFileInfo(file);
-                await MoveFile(file, destinationPath);
-            });
+                if (!destinationPath.Directory.Exists)
+                    destinationPath.Directory.Create();
+                MoveFile(file, destinationPath);
+            }
         });
 
-        public async Task MoveFile(FileInfo sourceFile, FileInfo destinationFile)
+        public void MoveFile(FileInfo sourceFile, FileInfo destinationFile)
         {
             if (!destinationFile.Exists)
             {
                 sourceFile.CopyTo(destinationFile.FullName);
-                //await CopyFileAsync(sourceFile.FullName, destinationFile.FullName);
                 FilesMovedEvent?.Invoke(new MovedFile()
                 {
                     OriginFile = sourceFile,
@@ -57,11 +138,18 @@ namespace PhotoMover
             }
         }
 
-        private static async Task CopyFileAsync(string sourceFile, string destinationFile)
+        protected virtual bool IsFileLocked(FileInfo file)
         {
-            using (var sourceStream = new FileStream(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan))
-            using (var destinationStream = new FileStream(destinationFile, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan))
-                await sourceStream.CopyToAsync(destinationStream);
+            try
+            {
+                using FileStream stream = file.Open(FileMode.Open, FileAccess.Read, FileShare.None);
+                stream.Close();
+            }
+            catch (Exception)
+            {
+                return true;
+            }
+            return false;
         }
     }
 }
